@@ -5,45 +5,36 @@
 #include <cstdlib>
 #include <windows.h>
 #include <cstdio>
+#include "Users.h"
+#include "Persons.h"
 
 using namespace std;
-
-struct User {
-    string login, password;
-    int id;
-};
-
-struct Person {
-    string name, lastName, phoneNumber, email, address;
-    int id, userId;
-};
 
 void loadUsersFromFile(vector <User> &users);
 void saveUserDataToFile(vector <User> &users);
 void showUsers(vector <User> &users);
 void registerNewUser(vector <User> &users);
-void loggedUserMenu(vector <User> :: iterator loggedUserIterator, vector <User> &users);
-vector <User> :: iterator logInUser(vector <User> &users);
+void changeUserPassword(vector <User> &users);
+void loggedUserMenu(vector <User> &users, int loggedUserId);
+int logInUser(vector <User> &users);
 
 ///////////////////////////////////////////////////////////////////
 string loadLine();
 string separateLine(string &line);
-void addPerson(vector <Person> &persons, int loggedUserId);
+void addPerson(vector <Person> &persons);
 void editPerson(vector <Person> &persons);
 void deletePerson(vector <Person> &persons);
 void showPersonByName(vector <Person> &persons);
 void showPersonByLastName(vector <Person> &persons);
 void showAllPersons(vector <Person> &persons);
-void showPersonData(vector <Person> &persons, vector <Person> ::iterator personNumber);
 void loadPersonFromFile(vector <Person> &persons, int loggedUserId);
-void savePersonDataToFile(Person &newPerson, int loggedUserId, string option);
+void savePersonDataToFile(Person &newPerson, string option);
 
 int main() {
     vector <User> users;
     loadUsersFromFile(users);
-    vector <User> :: iterator loggedUserIterator;
+    int loggedUserId = 0;
     int menuChoice;
-
     while (1) {
         cout << "-----MENU-----" << endl << endl;
         cout << "1. Logowanie" << endl;
@@ -53,12 +44,9 @@ int main() {
 
         switch (menuChoice) {
         case 1:
-            loggedUserIterator = logInUser(users);
-            if (loggedUserIterator != users.end()) {
-                cout << endl << "Zalogowano!!!" << endl << endl;
-                system("pause");
-                system("cls");
-                loggedUserMenu(loggedUserIterator, users);
+            loggedUserId = logInUser(users);
+            if (loggedUserId > 0) {
+                loggedUserMenu(users, loggedUserId);
             } else {
                 cout << endl << "Bledny login lub haslo!!!" << endl << endl;
                 system("pause");
@@ -102,22 +90,11 @@ string loadLine() {
     return lineToLoad;
 }
 
-void addPerson(vector <Person> &persons, int loggedUserId) {
+void addPerson(vector <Person> &persons) {
     Person newPerson;
-    cout << endl;
-    cout << "Podaj imie: ";
-    newPerson.name = loadLine();
-    cout << "Podaj nazwisko: ";
-    newPerson.lastName = loadLine();
-    cout << "Podaj nr. telefonu: ";
-    newPerson.phoneNumber = loadLine();
-    cout << "Podaj adres e-mail: ";
-    newPerson.email = loadLine();
-    cout << "Podaj adres: ";
-    newPerson.address = loadLine();
-    newPerson.userId = loggedUserId;
+    newPerson.addNewPerson();
 
-    savePersonDataToFile(newPerson, loggedUserId, "addPerson");
+    savePersonDataToFile(newPerson, "addPerson");
     persons.push_back(newPerson);
 }
 
@@ -131,11 +108,10 @@ void editPerson(vector <Person> &persons) {
         cin >> id;
 
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            if (vectorBegin->id == id) {
+            if (vectorBegin->getId() == id) {
                 break;
-            } else if ((vectorBegin->id != id) && (vectorBegin >= vectorEnd - 1)) {
+            } else if ((vectorBegin->getId() != id) && (vectorBegin >= vectorEnd - 1)) {
                 cout << "Nie ma adresata o takim id!!!" << endl;
-                system("pause");
                 return;
             }
         }
@@ -154,31 +130,31 @@ void editPerson(vector <Person> &persons) {
             switch (option) {
             case 1:
                 cout << endl << "Podaj nowe imie: ";
-                getline(cin, vectorBegin->name);
+                vectorBegin->setName(loadLine());
                 cout << endl << "Zmieniono imie!!!" << endl << endl;
                 system("pause");
                 break;
             case 2:
                 cout << endl << "Podaj nowe nazwisko: ";
-                getline(cin, vectorBegin->lastName);
+                vectorBegin->setLastName(loadLine());
                 cout << endl << "Zmieniono nazwisko!!!" << endl << endl;
                 system("pause");
                 break;
             case 3:
                 cout << endl << "Podaj nowy numer telefonu: ";
-                getline(cin, vectorBegin->phoneNumber);
+                vectorBegin->setPhoneNumber(loadLine());
                 cout << endl << "Zmieniono numer telefonu!!!" << endl << endl;
                 system("pause");
                 break;
             case 4:
                 cout << endl << "Podaj nowy e-mail: ";
-                getline(cin, vectorBegin->email);
+                vectorBegin->setEmail(loadLine());
                 cout << endl << "Zmieniono e-mail!!!" << endl << endl;
                 system("pause");
                 break;
             case 5:
                 cout << endl << "Podaj nowy adres: ";
-                getline(cin, vectorBegin->address);
+                vectorBegin->setAddress(loadLine());
                 cout << endl << "Zmieniono adres!!!" << endl << endl;
                 system("pause");
                 break;
@@ -189,7 +165,7 @@ void editPerson(vector <Person> &persons) {
                 system("pause");
             }
         } while (option != 6);
-        savePersonDataToFile(*vectorBegin, vectorBegin->userId, "editPerson");
+        savePersonDataToFile(*vectorBegin, "editPerson");
     } else {
         cout << endl << "Ksiazka adresowa jest pusta!!!" << endl << endl;
     }
@@ -206,17 +182,20 @@ void deletePerson(vector <Person> &persons) {
         cin >> id;
 
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            if (vectorBegin->id == id) {
+            if (vectorBegin->getId() == id) {
                 break;
             } else if (vectorBegin >= vectorEnd - 1) {
                 cout << endl << "Nie ma adresata o takim id!!!" << endl << endl;
                 return;
             }
         }
-        cout << endl << "Czy na pewno chcesz usunac adresata o id = " << vectorBegin->id << " <t/n>: ";
+        cout << endl << "Czy na pewno chcesz usunac adresata o id = " << vectorBegin->getId() << " <t/n>: ";
         cin >> option;
         if (option == 't' || option == 'T') {
-            savePersonDataToFile(*vectorBegin, vectorBegin->userId, "deletePerson");
+            if (vectorBegin->getId() == vectorBegin->getGlobalPersonId()) {
+                vectorBegin->setGlobalPersonId(vectorBegin->getId() - 1);
+            }
+            savePersonDataToFile(*vectorBegin, "deletePerson");
             persons.erase(vectorBegin);
         } else {
             cout << endl << "Nie wprowadzono zmian!!!" << endl << endl;
@@ -237,8 +216,8 @@ void showPersonByName(vector <Person> &persons) {
         nameToShow = loadLine();
 
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            if (vectorBegin->name == nameToShow) {
-                showPersonData(persons, vectorBegin);
+            if (vectorBegin->getName() == nameToShow) {
+                vectorBegin->showPersonData();
                 nameWasFound = true;
             }
         }
@@ -262,8 +241,8 @@ void showPersonByLastName(vector <Person> &persons) {
         lastNameToShow = loadLine();
 
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            if (vectorBegin->lastName == lastNameToShow) {
-                showPersonData(persons, vectorBegin);
+            if (vectorBegin->getLastName() == lastNameToShow) {
+                vectorBegin->showPersonData();
                 lastNameWasFound = true;
             }
         }
@@ -282,7 +261,7 @@ void showAllPersons(vector <Person> &persons) {
 
     if (persons.empty() == false) {
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            showPersonData(persons, vectorBegin);
+            vectorBegin->showPersonData();
         }
         cout << endl;
     } else {
@@ -290,33 +269,18 @@ void showAllPersons(vector <Person> &persons) {
     }
 }
 
-void showPersonData(vector <Person> &persons, vector <Person> ::iterator personNumber) {
-    cout << endl;
-    cout << "Id:       " << personNumber->id << endl;
-    cout << "User Id:  " << personNumber->userId << endl;
-    cout << "Imie:     " << personNumber->name << endl;
-    cout << "Nazwisko: " << personNumber->lastName << endl;
-    cout << "Telefon:  " << personNumber->phoneNumber << endl;
-    cout << "E-mail:   " << personNumber->email << endl;
-    cout << "Adres:    " << personNumber->address << endl;
-}
-
 void loadPersonFromFile(vector <Person> &persons, int loggedUserId) {
     Person loadPerson;
+    loadPerson.setGlobalLoggedUserId(loggedUserId);
     string lineLoaded;
     ifstream readFromFile("Adresaci.txt");
 
     if (readFromFile.good() == true) {
         cin.sync();
         while (getline(readFromFile, lineLoaded)) {
-            loadPerson.id = atoi(separateLine(lineLoaded).c_str());
-            loadPerson.userId = atoi(separateLine(lineLoaded).c_str());
-            if (loadPerson.userId == loggedUserId) {
-                loadPerson.name = separateLine(lineLoaded);
-                loadPerson.lastName = separateLine(lineLoaded);
-                loadPerson.phoneNumber = separateLine(lineLoaded);
-                loadPerson.email = separateLine(lineLoaded);
-                loadPerson.address = separateLine(lineLoaded);
+            loadPerson.setPersonData(lineLoaded);
+            loadPerson.setGlobalPersonId(loadPerson.getId());
+            if (loadPerson.getUserId() == loggedUserId) {
                 persons.push_back(loadPerson);
             }
         }
@@ -333,38 +297,26 @@ void loadPersonFromFile(vector <Person> &persons, int loggedUserId) {
     }
 }
 
-void savePersonDataToFile(Person &newPerson, int loggedUserId, string option) {
+void savePersonDataToFile(Person &newPerson, string option) {
     ofstream saveToFile("Tymczasowy_Adresaci.txt");
     ifstream readFromFile("Adresaci.txt");
-    string lineLoaded;
+    string lineLoaded, copyLine;
     int personId = 0;
 
     if ((saveToFile.good() == true) && (readFromFile.good() == true)) {
         while (getline(readFromFile, lineLoaded)) {
-            personId = lineLoaded[0] - '0';
-            if (personId == newPerson.id && option == "editPerson") {
-                saveToFile << newPerson.id << "|";
-                saveToFile << loggedUserId << "|";
-                saveToFile << newPerson.name << "|";
-                saveToFile << newPerson.lastName << "|";
-                saveToFile << newPerson.phoneNumber << "|";
-                saveToFile << newPerson.email << "|";
-                saveToFile << newPerson.address << "|" << endl;
-            } else if ((personId == newPerson.id) && (option == "deletePerson")) {
+            copyLine = lineLoaded;
+            personId = atoi(separateLine(copyLine).c_str());
+            if (personId == newPerson.getId() && option == "editPerson") {
+                saveToFile << newPerson.getPersonDataInLine() << endl;
+            } else if ((personId == newPerson.getId()) && (option == "deletePerson")) {
                 continue;
             } else {
                 saveToFile << lineLoaded << endl;
             }
         }
         if (option == "addPerson") {
-            saveToFile << personId + 1 << "|";
-            saveToFile << loggedUserId << "|";
-            saveToFile << newPerson.name << "|";
-            saveToFile << newPerson.lastName << "|";
-            saveToFile << newPerson.phoneNumber << "|";
-            saveToFile << newPerson.email << "|";
-            saveToFile << newPerson.address << "|" << endl;
-            newPerson.id = personId + 1;
+            saveToFile << newPerson.getPersonDataInLine() << endl;
         }
         cout << endl << "Zapisano zmiany!!!" << endl << endl;
         saveToFile.close();
@@ -394,10 +346,8 @@ void loadUsersFromFile(vector <User> &users) {
     if (readFromFile.good() == true) {
         cin.sync();
         while (getline(readFromFile, lineLoaded)) {
-            loadUser.id = atoi(separateLine(lineLoaded).c_str());
-            loadUser.login = separateLine(lineLoaded);
-            loadUser.password = separateLine(lineLoaded);
-
+            loadUser.setUserDataFromFile(lineLoaded);
+            loadUser.setGlobalUserId();
             users.push_back(loadUser);
         }
         readFromFile.close();
@@ -418,9 +368,7 @@ void saveUserDataToFile(vector <User> &users) {
 
     if (saveToFile.good() == true) {
         for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-            saveToFile << vectorBegin->id << "|";
-            saveToFile << vectorBegin->login << "|";
-            saveToFile << vectorBegin->password << "|" << endl;
+            saveToFile << vectorBegin->getUserDataInLine() << endl;
         }
         cout << endl << "Zapisano zmiany!!!" << endl << endl;
         saveToFile.close();
@@ -434,50 +382,61 @@ void registerNewUser(vector <User> &users) {
     vector <User> ::iterator vectorBegin = users.begin();
     vector <User> ::iterator vectorEnd = users.end();
     User newUser;
-
     cout << "Podaj login: ";
-    cin >> newUser.login;
+    newUser.setLogin(loadLine());
 
     for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-        if (newUser.login == vectorBegin->login) {
+        if (newUser.getLogin() == vectorBegin->getLogin()) {
             cout << endl << "Podany login jest zajety!!!" << endl << endl;
             return;
         }
     }
     cout << "Podaj haslo: ";
-    cin >> newUser.password;
-    if (users.empty()) {
-        newUser.id = 1;
-    } else {
-        newUser.id = (vectorEnd - 1)->id + 1;
-    }
+    newUser.setPassword(loadLine());
+    newUser.setId();
     users.push_back(newUser);
     saveUserDataToFile(users);
 }
 
-vector <User> :: iterator logInUser(vector <User> &users) {
+void changeUserPassword(vector <User> &users) {
     vector <User> ::iterator vectorBegin = users.begin();
     vector <User> ::iterator vectorEnd = users.end();
-    User userTryingToLog;
-
-    cout << "Podaj login: ";
-    cin >> userTryingToLog.login;
-    cout << "Podaj haslo: ";
-    cin >> userTryingToLog.password;
 
     for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
-        if ((userTryingToLog.login == vectorBegin->login) && (userTryingToLog.password == vectorBegin->password)) {
-            return vectorBegin;
+        if (vectorBegin->getId() == vectorBegin->getGlobalLoggedUserId()) {
+            cout << "Podaj nowe haslo: ";
+            vectorBegin->setPassword(loadLine());
+            saveUserDataToFile(users);
+            break;
         }
     }
-    return vectorEnd;
 }
 
-void loggedUserMenu(vector <User> :: iterator loggedUserIterator, vector <User> &users) {
+int logInUser(vector <User> &users) {
+    vector <User> ::iterator vectorBegin = users.begin();
+    vector <User> ::iterator vectorEnd = users.end();
+    User userToLog;
+
+    userToLog.setUserData();
+
+    for (vectorBegin; vectorBegin != vectorEnd; vectorBegin++) {
+        if (vectorBegin->checkUserLoginAndPassword(userToLog) == true) {
+            vectorBegin->setGlobalLoggedUserId();
+            return vectorBegin->getId();
+        }
+    }
+    return 0;
+}
+
+void loggedUserMenu(vector <User> &users, int loggedUserId) {
+    cout << endl << "Zalogowano!!!" << endl << endl;
+    system("pause");
+    system("cls");
+
     int menuChoice;
     vector <Person> persons;
 
-    loadPersonFromFile(persons, loggedUserIterator->id);
+    loadPersonFromFile(persons, loggedUserId);
     system("cls");
     while (1) {
         cout << "-----KSIAZKA ADRESOWA-----" << endl << endl;
@@ -493,7 +452,7 @@ void loggedUserMenu(vector <User> :: iterator loggedUserIterator, vector <User> 
 
         switch (menuChoice) {
         case 1:
-            addPerson(persons, loggedUserIterator->id);
+            addPerson(persons);
             system("pause");
             break;
         case 2:
@@ -516,12 +475,11 @@ void loggedUserMenu(vector <User> :: iterator loggedUserIterator, vector <User> 
             editPerson(persons);
             system("pause");
             break;
-        case 7:
-            cout << "Podaj nowe haslo: ";
-            cin >> loggedUserIterator->password;
-            saveUserDataToFile(users);
+        case 7: {
+            changeUserPassword(users);
             system("pause");
             break;
+        }
         case 8:
             cout << "Wylogowano!!!" << endl << endl;
             system("pause");
